@@ -63,7 +63,7 @@ USER asterisk
 
 # Asterisk installs under /usr/sbin by default per project docs
 # Run in foreground with some verbosity
-#CMD ["/usr/sbin/asterisk", "-cvvv"]
+CMD ["/usr/sbin/asterisk", "-cvvv"]
 
 # drop into bash for debugging
-CMD ["/bin/bash"]
+#CMD ["/bin/bash"]

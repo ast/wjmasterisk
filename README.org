@@ -1,5 +1,14 @@
 * Asterisk notes
 
+** Softphones
+
+- http://twinkle.dolezel.info/
+  Can be installed via =sudo apt install twinkle=
+
+- https://icanblink.com/
+- https://github.com/guisousanunes/sipcmd2
+- https://github.com/tmakkonen/sipcmd
+
 ** Asterisk
 
 #+begin_src bash
@@ -60,6 +69,7 @@ Building:
         --username 6002 \
         --password 6002 \
         --local-port=5063
+        # --use-tls
 
     pjsua --id sip:6001@10.60.0.127 \
         --registrar sip:10.60.0.127 \
@@ -81,6 +91,3 @@ Building:
   # 603 → decline
 #+end_src
 
-** Linphone
-sip:6001@10.60.0.127x
-<sip:10.60.0.127;transport=udp>
