@@ -3,21 +3,25 @@
 ** Asterisk
 
 #+begin_src bash
-  # Run with CLI
-  asterisk -cvvvvv
+  # Run with settings bind mounted
+  docker run --rm -it \
+         -p 5060:5060/udp -p 5060:5060/tcp -p 5061:5061/tcp \
+         -p 10000-10010:10000-10010/udp \
+         -v $(pwd)/etc-asterisk:/etc/asterisk \
+         sm6wjm.se/asterisk:latest
+#+end_src
 
+Useful commands:
+
+#+begin_src bash
   # Turn on pjsip logger
   pjsip set logger on
-
   # Show registrations
   pjsip show registrations
-
   # RTP show settings
   rtp show settings
-
   pjsip show aors
   pjsip show contacts
-
   core show channels
 #+end_src
 
