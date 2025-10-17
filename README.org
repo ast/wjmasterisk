@@ -3,11 +3,17 @@
 ** Asterisk
 
 #+begin_src bash
+  # Build docker
+  docker build . -t sm6wjm.se/asterisk:latest
+#+end_src
+
+#+begin_src bash
   # Run with settings bind mounted
   docker run --rm -it \
          -p 5060:5060/udp -p 5060:5060/tcp -p 5061:5061/tcp \
          -p 10000-10010:10000-10010/udp \
          -v $(pwd)/etc-asterisk:/etc/asterisk \
+         -v $(pwd)/keys:/etc/asterisk/keys \
          sm6wjm.se/asterisk:latest
 #+end_src
 

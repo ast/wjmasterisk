@@ -1,15 +1,5 @@
 # Copyright Albin SM6WJM
 
-# docker run --rm -it \
-#   -p 5060:5060/udp -p 5060:5060/tcp -p 5061:5061/tcp \
-#   -p 10000-10010:10000-10010/udp \
-#   -v $(pwd)/etc-asterisk:/etc/asterisk \
-#   sm6wjm.se/asterisk:latest
-
-
-# docker build . -t sm6wjm.se/asterisk:latest
-
-
 # Build the latest Asterisk on Debian 13 (Trixie)
 FROM debian:trixie-slim
 
@@ -73,7 +63,7 @@ USER asterisk
 
 # Asterisk installs under /usr/sbin by default per project docs
 # Run in foreground with some verbosity
-CMD ["/usr/sbin/asterisk", "-cvvv"]
+#CMD ["/usr/sbin/asterisk", "-cvvv"]
 
 # drop into bash for debugging
-#CMD ["/bin/bash"]
+CMD ["/bin/bash"]
