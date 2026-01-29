@@ -2,9 +2,6 @@
 
 ** Softphones
 
-- http://twinkle.dolezel.info/
-  Can be installed via =sudo apt install twinkle=
-
 - https://icanblink.com/
 - https://github.com/guisousanunes/sipcmd2
 - https://github.com/tmakkonen/sipcmd
@@ -38,6 +35,9 @@ Useful commands:
   pjsip show aors
   pjsip show contacts
   core show channels
+
+  # list avialable codecs
+  core show codecs
 #+end_src
 
 ** pjsua/pjproject
