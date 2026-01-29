@@ -1,4 +1,4 @@
-# Copyright Albin SM6WJM
+# Copyright Albin SM6WJM 2026
 
 # Build the latest Asterisk on Debian 13 (Trixie)
 FROM debian:trixie-slim
@@ -9,6 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Base tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    locales \
     ca-certificates git build-essential pkg-config  curl wget \
     libncurses-dev \
     libnewt-dev \
@@ -34,19 +35,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsox-dev \
     libsox-fmt-all \
     && rm -rf /var/lib/apt/lists/*
-    #procps nano net-tools iproute2 \
+
+# Set up locale
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    locale-gen
+
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
 
 # Checkout the newest non-RC tag (e.g., 22.5.2, 21.10.0, 20.16.0, etc.)
 WORKDIR /usr/src
 
-RUN wget https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-23.0.0.tar.gz && \
-    tar xzf asterisk-23.0.0.tar.gz && \
-    cd asterisk-23.0.0 && \
+RUN wget https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-23.2.0.tar.gz && \
+    tar xzf asterisk-23.2.0.tar.gz && \
+    cd asterisk-23.2.0 && \
     ./configure  --with-pjproject-bundled --with-jansson-bundled && \
     make -j$(nproc) && make install
-
-# Copy etc files to /etc/asterisk
-# COPY etc-asterisk /etc/asterisk
 
 # Create runtime user with specific UID:GID = 1000:1000
 RUN groupadd -g 1000 asterisk && \
@@ -64,6 +69,8 @@ USER asterisk
 # Asterisk installs under /usr/sbin by default per project docs
 # Run in foreground with some verbosity
 CMD ["/usr/sbin/asterisk", "-cvvv"]
+
+# TODO: Convert into multistage build with smaller final image
 
 # drop into bash for debugging
 #CMD ["/bin/bash"]
