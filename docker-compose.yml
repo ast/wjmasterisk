@@ -16,7 +16,6 @@ services:
 
     volumes:
       - ./etc-asterisk:/etc/asterisk
-      - ./keys:/etc/asterisk/keys
       # Added for persistent logs and recordings
       - asterisk_data:/var/lib/asterisk
       - asterisk_logs:/var/log/asterisk

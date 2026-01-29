@@ -5,7 +5,6 @@ FULL_IMAGE := $(IMAGE_NAME):$(TAG)
 
 # Paths for mounting
 ETC_DIR    := $(shell pwd)/etc-asterisk
-KEYS_DIR   := $(shell pwd)/keys
 
 .PHONY: help build push run all
 
@@ -31,7 +30,6 @@ run:
 		-p 5060:5060/udp -p 5060:5060/tcp -p 5061:5061/tcp \
 		-p 10000-10010:10000-10010/udp \
 		-v $(ETC_DIR):/etc/asterisk \
-		-v $(KEYS_DIR):/etc/asterisk/keys \
 		$(FULL_IMAGE)
 
 # Shortcut to do both
