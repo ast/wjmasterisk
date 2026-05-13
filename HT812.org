@@ -73,7 +73,24 @@ port:
 | Name (display)        | e.g. =Kitchen=                                                             | e.g. =Hallway= |
 | Enable Port           | Yes                                                                        | Yes            |
 
-Defaults for the rest of FXS PORTS are fine.
+Defaults for the rest of FXS PORTS are fine, *except* if a rotary
+phone is plugged in — see below.
+
+*** Rotary / pulse-dial phones
+
+Only relevant for ports with a rotary phone. TouchTone handsets and
+modern cordless phones use DTMF and need none of this.
+
+| Field                  | Set to               | Why                                                                                         |
+|------------------------+----------------------+---------------------------------------------------------------------------------------------|
+| Enable Pulse Dialing   | =Yes=                | Decodes break/make pulses from the rotary dial                                              |
+| Pulse Dialing Standard | =Swedish Standard=   | =General Standard= adds +1 to every digit on Swedish-spec phones (Ericsson Diavox / Dialog) |
+| Use # as Dial Key      | =No=                 | Rotary phones have no =#=; calls complete on the inter-digit timeout instead                |
+
+Limitation: rotary phones can't dial =*= or =#=, so the feature codes
+(=*43= echo, =*44= MoH, =*97= voicemail) aren't reachable. Add
+plain-number aliases in =etc-asterisk/extensions.conf= if you want
+them — e.g. =800= → echo, =801= → MoH, =802= → voicemail.
 
 ** 4. Apply and reboot
 
