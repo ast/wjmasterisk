@@ -1,21 +1,30 @@
 * Asterisk notes
 
-#+begin_src bash
-  # Build docker
-  docker build . -t sm6wjm.se/asterisk:latest
-#+end_src
+** Ideas
+
+- Use a tailscale docker
+
+** Using
+
+
+Build and run via the [[file:justfile][justfile]]:
 
 #+begin_src bash
-  # Run with settings bind mounted
-  docker run --rm -it \
-         -p 5060:5060/udp -p 5060:5060/tcp -p 5061:5061/tcp \
-         -p 10000-10010:10000-10010/udp \
-         -v $(pwd)/etc-asterisk:/etc/asterisk \
-         -v $(pwd)/keys:/etc/asterisk/keys \
-         sm6wjm.se/asterisk:latest
+  just            # list recipes
+  just build      # build the docker image
+  just run        # run with ./etc-asterisk bind-mounted into the container
+  just push       # push to the registry
+  just all        # build + push
 #+end_src
 
-Useful commands:
+Alternatively use docker compose (adds persistent volumes for
+=/var/lib/asterisk= and =/var/log/asterisk=):
+
+#+begin_src bash
+  docker compose up --build
+#+end_src
+
+Useful commands inside the Asterisk CLI:
 
 #+begin_src bash
   # Turn on pjsip logger

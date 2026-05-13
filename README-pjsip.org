@@ -13,26 +13,25 @@ Building:
   make dep
   make -j$(nproc)
 
-  # apps are here and not installed
-  cd pjsip-apps/src/pjsua
 #+end_src
 
+The apps are here: pjproject/pjsip-apps/bin
+
 #+begin_src bash
-  pjsua --id sip:6002@10.60.0.127 \
-        --registrar sip:10.60.0.127 \
+    pjsua --id sip:6002@192.168.1.16 \
+        --registrar sip:192.168.1.16 \
         --realm '*' \
         --username 6002 \
         --password 6002 \
         --local-port=5063
         # --use-tls
 
-    pjsua --id sip:6001@10.60.0.127 \
-        --registrar sip:10.60.0.127 \
+    pjsua --id sip:6001@192.168.1.16 \
+        --registrar sip:192.168.1.16 \
         --realm '*' \
         --username 6001 \
         --password 6001 \
         --local-port=5062
-
 #+end_src
 
 #+begin_src bash

@@ -1,0 +1,9 @@
+.git
+.gitignore
+.projectile
+*.tar.gz
+etc-asterisk
+README*
+CLAUDE.md
+justfile
+docker-compose.yml
