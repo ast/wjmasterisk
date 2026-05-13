@@ -32,19 +32,18 @@ After saving here, the device reboots and grabs a normal
 
 This is the SIP profile both FXS ports will use.
 
-| Field                          | Change to                  |
-|--------------------------------+----------------------------|
-| Primary SIP Server             | =192.168.1.40= (PBX IP)    |
-| SIP Transport                  | UDP (already default)      |
-| NAT Traversal                  | No (already default)       |
-| Register Expiration            | =5= (minutes)              |
-| Preferred Vocoder — choice 1   | PCMU                       |
-| Preferred Vocoder — choice 2   | PCMA                       |
+| Field                          | Change to                                                                                  |
+|--------------------------------+--------------------------------------------------------------------------------------------|
+| Primary SIP Server             | =192.168.1.40= (PBX IP)                                                                    |
+| SIP Transport                  | UDP (already default)                                                                      |
+| NAT Traversal                  | No (already default)                                                                       |
+| Register Expiration            | =5= (minutes)                                                                              |
+| Preferred Vocoder — choice 1   | PCMU                                                                                       |
+| Preferred Vocoder — choice 2   | PCMA                                                                                       |
 | Preferred Vocoder — choice 3–8 | (leave at whatever — they'll never get picked, our =[ata]= template only offers ulaw/alaw) |
-| SRTP Mode                      | Disabled (already default) |
-| SLIC Setting                   | =SWEDEN= (default is USA 1) — picks the right line impedance for the local phone |
-| Caller ID Scheme               | =ETSI-FSK during ringing (UK,Ireland,Spain,…)=
-                                                                if your phones don't show caller ID with Bellcore |
+| SRTP Mode                      | Disabled (already default)                                                                 |
+| SLIC Setting                   | =European CTR21= — pan-EU reference impedance (270Ω + 750Ω∥150nF), correct for Swedish lines |
+| Caller ID Scheme               | =Bellcore/Telcordia= (default) is fine for most modern phones. If caller-ID doesn't show, try =ETSI-FSK during ringing (UK,Ireland,Spain,…)= |
 
 Everything else on this page stays at its default. In particular:
 
@@ -64,15 +63,15 @@ you can batch everything into one reboot.
 The per-port table near the top of the FXS PORTS page. One row per
 port:
 
-| Field             | Port 1                | Port 2                |
-|-------------------+-----------------------+-----------------------|
-| Profile ID        | 1                     | 1                     |
-| SIP User ID       | =6010=                | =6011=                |
-| Authenticate ID   | =6010=                | =6011=                |
-| Authenticate Password | =6010=            | =6011=                |
-|                   | (match =pjsip.conf=; change once you've changed the placeholder passwords) |
-| Name (display)    | e.g. =Kitchen=        | e.g. =Hallway=        |
-| Enable Port       | Yes                   | Yes                   |
+| Field                 | Port 1                                                                     | Port 2         |
+|-----------------------+----------------------------------------------------------------------------+----------------|
+| Profile ID            | 1                                                                          | 1              |
+| SIP User ID           | =6010=                                                                     | =6011=         |
+| Authenticate ID       | =6010=                                                                     | =6011=         |
+| Authenticate Password | =6010=                                                                     | =6011=         |
+|                       | (match =pjsip.conf=; change once you've changed the placeholder passwords) |                |
+| Name (display)        | e.g. =Kitchen=                                                             | e.g. =Hallway= |
+| Enable Port           | Yes                                                                        | Yes            |
 
 Defaults for the rest of FXS PORTS are fine.
 
@@ -112,3 +111,7 @@ test. Try =6011= from FXS 1 to ring FXS 2. Done.
 - *Echo on outgoing.* =FXS PORTS → Disable Line Echo Canceller= must
   stay =No=. If you still hear echo, raise the RX gain attenuation
   (more negative).
+- *Hollow or distorted audio on the analog side.* SLIC impedance is
+  wrong for the handset. =European CTR21= covers most modern EU /
+  Swedish phones; very old (pre-1980s) 600 Ω handsets like vintage
+  Ericsson Bakelite sets are happier with =USA 1 (BELLCORE 600 ohms)=.
