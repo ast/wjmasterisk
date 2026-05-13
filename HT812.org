@@ -1,0 +1,114 @@
+* Grandstream HT812 — minimal config walkthrough
+
+Settings to *change* on a factory-default HT812 to make it register
+two FXS ports against this Asterisk PBX. Anything not listed below
+can be left at its factory default.
+
+Target:
+- Port 1 (FXS 1) → SIP extension =6010=
+- Port 2 (FXS 2) → SIP extension =6011=
+- LAN only, UDP, G.711 (no SRTP, no NAT traversal)
+
+** 0. Before you log in
+
+- Cable in the *WAN* port (silkscreened "INTERNET"). Leave LAN unplugged.
+- First boot the device falls back to =192.168.2.1= if no DHCP.
+  See =HARDWARE.org → Finding it on the network= if it's hiding.
+- Default web login: =admin / admin= (change later — see step 1).
+
+** 1. BASIC SETTINGS
+
+| Field                  | Change to                | Why                               |
+|------------------------+--------------------------+-----------------------------------|
+| Address Type           | =DHCP=                   | Take a lease from your router     |
+| Device Mode            | =Bridge=                 | Disables NAT + DHCP server        |
+| New Admin Password     | (something memorable)    | Don't leave =admin / admin=       |
+| New End User Password  | (something memorable)    | Same reasoning                    |
+
+After saving here, the device reboots and grabs a normal
+=192.168.1.x= lease. From now on, browse to the new IP.
+
+** 2. PROFILE 1
+
+This is the SIP profile both FXS ports will use.
+
+| Field                          | Change to                  |
+|--------------------------------+----------------------------|
+| Primary SIP Server             | =192.168.1.40= (PBX IP)    |
+| SIP Transport                  | UDP (already default)      |
+| NAT Traversal                  | No (already default)       |
+| Register Expiration            | =5= (minutes)              |
+| Preferred Vocoder — choice 1   | PCMU                       |
+| Preferred Vocoder — choice 2   | PCMA                       |
+| Preferred Vocoder — choice 3–8 | (leave at whatever — they'll never get picked, our =[ata]= template only offers ulaw/alaw) |
+| SRTP Mode                      | Disabled (already default) |
+| SLIC Setting                   | =SWEDEN= (default is USA 1) — picks the right line impedance for the local phone |
+| Caller ID Scheme               | =ETSI-FSK during ringing (UK,Ireland,Spain,…)=
+                                                                if your phones don't show caller ID with Bellcore |
+
+Everything else on this page stays at its default. In particular:
+
+- =Profile Active= = Yes ✓ (factory default — leave alone)
+- =SIP Registration= = Yes ✓
+- =Use Random SIP Port= = No ✓
+- =Use Random RTP Port= = No ✓
+- =Preferred DTMF method= = RFC2833 priority 1 ✓
+- =Send Anonymous= = No ✓
+- =Session Expiration= = 180 ✓
+
+Click *Update*, then move to FXS PORTS *before* you Apply/Reboot —
+you can batch everything into one reboot.
+
+** 3. FXS PORTS
+
+The per-port table near the top of the FXS PORTS page. One row per
+port:
+
+| Field             | Port 1                | Port 2                |
+|-------------------+-----------------------+-----------------------|
+| Profile ID        | 1                     | 1                     |
+| SIP User ID       | =6010=                | =6011=                |
+| Authenticate ID   | =6010=                | =6011=                |
+| Authenticate Password | =6010=            | =6011=                |
+|                   | (match =pjsip.conf=; change once you've changed the placeholder passwords) |
+| Name (display)    | e.g. =Kitchen=        | e.g. =Hallway=        |
+| Enable Port       | Yes                   | Yes                   |
+
+Defaults for the rest of FXS PORTS are fine.
+
+** 4. Apply and reboot
+
+Bottom of any page: *Apply*, then *Reboot*. Wait ~30 s.
+
+** 5. Verify
+
+On the HT812:
+- =Status → Port Status= should show =Registered= for both ports.
+
+On the PBX (host running Asterisk):
+
+#+begin_src bash
+  docker exec -it $(docker ps -qf ancestor=sm6wjm/asterisk) \
+      asterisk -rx "pjsip show endpoints" | rg '6010|6011'
+#+end_src
+
+Each line should show =Available= and a contact at the HT812's LAN IP.
+
+Pick up a handset on FXS 1 → dial =*43= → you should hear the echo
+test. Try =6011= from FXS 1 to ring FXS 2. Done.
+
+** Common gotchas
+
+- *No dial tone, no registration.* The PBX IP is wrong, or the HT812
+  is still on =192.168.2.x= (Address Type wasn't switched to DHCP, or
+  was applied without reboot).
+- *Registers but no audio.* RTP range on the PBX side is
+  =10000–10010=. If you've cranked it tighter, widen it.
+- *Caller-ID misses.* Try the other Caller ID Scheme (Bellcore vs
+  ETSI-FSK). Some old Swedish phones expect ETSI between rings, some
+  don't display Bellcore.
+- *Volume too low / too high.* =FXS PORTS → Gain= TX/RX dB sliders.
+  Default 0/-6 is a sane starting point.
+- *Echo on outgoing.* =FXS PORTS → Disable Line Echo Canceller= must
+  stay =No=. If you still hear echo, raise the RX gain attenuation
+  (more negative).

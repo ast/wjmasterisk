@@ -53,11 +53,13 @@ config-test:
         echo; echo "==> OK: no ERROR-level lines in boot log"; \
      fi
 
-# Run for local testing
+# Run for local testing. --network host shares the host's network
+# stack so SIP/RTP are reachable from other machines on the LAN
+# without bridge-NAT/SDP rewrites. The published -p mappings are
+# unnecessary in host mode (Docker warns and ignores them anyway).
 run:
     docker run --rm -it \
-        -p 5060:5060/udp -p 5060:5060/tcp -p 5061:5061/tcp \
-        -p 10000-10010:10000-10010/udp \
+        --network host \
         -v {{etc_dir}}:/etc/asterisk \
         {{full_image}}
 
