@@ -6,4 +6,4 @@ etc-asterisk
 README*
 CLAUDE.md
 justfile
-docker-compose.yml
+compose.yaml

@@ -1,0 +1,55 @@
+# Compose alternative to `just run`. Same image, same host-network
+# stance (SIP/RTP don't survive bridge-NAT cleanly), plus:
+#   - restart policy so it comes up at boot
+#   - SIGINT shutdown (Asterisk doesn't exit cleanly on SIGTERM)
+#   - persistent volumes for voicemail, CDRs, logs
+#   - healthcheck via `core waitfullybooted`
+
+services:
+  asterisk:
+    build:
+      context: .
+      args:
+        # Keep in sync with `asterisk_version` in justfile.
+        ASTERISK_VERSION: "23.3.0"
+    image: sm6wjm/asterisk:latest
+    container_name: asterisk
+
+    # Host networking: Asterisk binds directly on the host's interfaces
+    # (5060/udp+tcp, 5061/tcp, RTP 10000-10010/udp from rtp.conf). No
+    # `ports:` mapping needed — host mode ignores it, and bridge-NAT
+    # breaks SIP SDP (clients receive the bridge IP instead of the LAN IP).
+    network_mode: host
+
+    restart: unless-stopped
+
+    # Asterisk shuts down cleanly only on SIGINT (Docker default is
+    # SIGTERM). Without this, `compose down` cuts in-flight calls and
+    # half-writes voicemail recordings.
+    stop_signal: SIGINT
+    stop_grace_period: 15s
+
+    volumes:
+      # Configuration — bind-mounted live. Edit a file and reload from
+      # the Asterisk console (`pjsip reload`, `dialplan reload`).
+      - ./etc-asterisk:/etc/asterisk
+      # Voicemail recordings + custom prompts + Music-on-Hold files.
+      - asterisk_spool:/var/spool/asterisk
+      # CDRs, sounds the build installed, astdb.
+      - asterisk_lib:/var/lib/asterisk
+      # full / messages / queue_log.
+      - asterisk_log:/var/log/asterisk
+
+    healthcheck:
+      # `core waitfullybooted` returns once Asterisk is past startup;
+      # exits non-zero if the AMI/CLI socket isn't reachable.
+      test: ["CMD", "asterisk", "-rx", "core waitfullybooted"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  asterisk_spool:
+  asterisk_lib:
+  asterisk_log:
