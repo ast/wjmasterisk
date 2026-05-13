@@ -120,16 +120,61 @@ by side on the same host:
         --local-port=5062
 #+end_src
 
+*** Useful pjsua commands
+
+Once pjsua is running you get an interactive prompt. The most useful
+single-letter commands:
+
+| Key  | What it does                                                   |
+|------+----------------------------------------------------------------|
+| =m=  | Make a call (prompts for the destination URI)                  |
+| =a=  | Answer the incoming call with 200 OK                           |
+| =g=  | Answer with a specific code (=200= answer, =486= busy, =603= decline) |
+| =h=  | Hang up the current call (=ha= hangs up all)                   |
+| =H=  | Hold the call                                                  |
+| =v=  | re-inVite — release hold / resume                              |
+| =]= =[= | Switch to next / previous call (when more than one is active) |
+| =x=  | Blind transfer the current call                                |
+| =#=  | Send DTMF (e.g. to enter a voicemail PIN, or dial =*97=, =*43=) |
+| =dq= | Dump current call quality (jitter, loss, RTT) — best audio-debug tool |
+| =d=  | Dump status (accounts, registrations, active calls)            |
+| =Cp= | Show / change codec priorities                                 |
+| =V=  | Adjust audio volume                                            |
+| =rr= | Re-register the account (useful when toggling network)         |
+| =q=  | Quit                                                           |
+
+The full menu is printed any time you press =?= at the prompt.
+
 *** Making calls
 
-From inside pjsua, type the destination URI at the prompt:
+Press =m= then enter a destination URI. With the =PBX= variable from
+above, useful targets:
 
 #+begin_src bash
-  sip:6001@$PBX;transport=udp
-  sip:6002@$PBX;transport=udp
-
-  # answer with one of:
-  # 200 → answer
-  # 486 → busy
-  # 603 → decline
+  sip:6001@$PBX;transport=udp        ; another softphone
+  sip:6010@$PBX;transport=udp        ; an ATA line
+  sip:*43@$PBX;transport=udp         ; echo test — verify audio path
+  sip:*97@$PBX;transport=udp         ; check your own voicemail
 #+end_src
+
+To answer an incoming call, press =a=. To reject with a specific status,
+press =g= and pick:
+
+#+begin_src bash
+  200 → answer
+  486 → busy
+  603 → decline
+#+end_src
+
+*** Things to try
+
+- =*43= from any phone — the echo test will repeat your voice back. If
+  you hear yourself, the audio path is healthy in both directions.
+- Park / unpark via =x= (transfer) to a parking lot extension (not
+  configured by default — would need =res_parking.so= loaded and a
+  =parkext= in =features.conf=).
+- =dq= during a call: watch the jitter and packet-loss counters when
+  moving the mobile client between WiFi and cellular.
+- Change codec priority with =Cp= and observe negotiation in the
+  Asterisk CLI with =pjsip set logger on= → look for the m= line in
+  the SDP.
