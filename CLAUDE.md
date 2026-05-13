@@ -28,7 +28,7 @@ core show codecs
 rtp show settings
 ```
 
-Test SIP clients are documented in `README-pjsip.org` — `pjsua` with extensions 6001/6002/6003 (password = username).
+Test SIP clients are documented in `README.org` under "Test clients (pjsua / pjproject)" — `pjsua` with any of the configured extensions (password = username by default; "; change me" comments mark the placeholders).
 
 ## Architecture and gotchas
 
@@ -38,9 +38,23 @@ Test SIP clients are documented in `README-pjsip.org` — `pjsua` with extension
 - **Image name inconsistency**: `justfile` tags `sm6wjm/asterisk:latest`; `docker-compose.yml` references `sm6wjm.se/asterisk:latest`. They are *not* interchangeable — `just build` won't produce the image compose expects unless you build via `docker compose build`.
 - **Ports**: SIP on 5060/udp+tcp, SIP-TLS on 5061/tcp, RTP on 10000–10010/udp. The RTP range in `Dockerfile` EXPOSE, `justfile` run recipe, `docker-compose.yml`, and Asterisk's `rtp.conf` all need to stay in sync. EXPOSE is informational; the published ports come from `docker run`/compose.
 - **TLS**: `pjsip.conf` `[transport-tls]` expects `/etc/asterisk/keys/asterisk.pem` and `asterisk.key`. The `etc-asterisk/keys/` directory is bind-mounted along with the rest of `etc-asterisk` (compose) — note `README.org` shows an older invocation that mounts `./keys` separately; the current compose layout has keys *inside* `etc-asterisk/keys`.
-- **Dialplan**: `etc-asterisk/extensions.conf` is intentionally minimal — context `internal` with three `Dial(PJSIP/600x)` entries matching the three endpoints in `pjsip.conf`. New extensions need entries in both files.
+- **Dialplan**: `etc-asterisk/extensions.conf` uses the pattern `_6XXX` to dial any 4-digit extension starting with 6, plus feature codes `*97` (voicemail) and `*43` (echo test). Adding a new phone only requires a new endpoint block in `pjsip.conf` (using a template) — the dialplan needs no changes as long as the number stays in the 6XXX range.
+- **PJSIP templates**: `pjsip.conf` uses three endpoint templates — `[softphone]`, `[ata]`, `[mobile]` — covering LAN softphones (opus/g722/ulaw), POTS adapters (G.711 only, UDP), and remote SIP clients (TLS+SRTP on 5061). Each phone is ~6 lines copy-paste once you pick a template. Numbering convention: 6001–6009 softphones, 6010–6019 ATAs, 6020–6029 mobile.
 - **NAT**: `pjsip.conf` `[transport-defaults]` whitelists RFC1918 + CGNAT (100.64.0.0/10, for Tailscale) as `local_net`. Set `external_media_address` / `external_signaling_address` there before exposing to the public internet.
 
 ## Editing configs
 
 The `etc-asterisk/` directory **is** the source of truth — it's bind-mounted live, so changes take effect on Asterisk restart (or `module reload` / `pjsip reload` from the CLI) without rebuilding the image. Don't bake configs into the image.
+
+## Testing
+
+**Always pass `--rm` when spinning up containers for testing.** Smoke tests that use `docker run -d` without `--rm` leave the container behind on exit/kill, and a long session can accumulate many of them (each holding port reservations and bind mounts). Pattern for a quick boot-and-inspect:
+
+```bash
+cid=$(docker run -d --rm -v "$(pwd)/etc-asterisk:/etc/asterisk:ro" sm6wjm/asterisk:latest)
+until docker exec "$cid" /usr/sbin/asterisk -rx "core waitfullybooted" 2>/dev/null | grep -q "fully booted"; do sleep 0.5; done
+# ...inspect via docker exec / docker logs...
+docker kill -s INT "$cid" >/dev/null   # SIGINT, not SIGTERM — Asterisk shuts down cleanly on INT
+```
+
+Note: don't try `docker run timeout --signal=INT N /usr/sbin/asterisk` — `timeout` becomes PID 1 in the container and docker's signal handling makes the SIGINT to its child unreliable; the container often hangs. The detached + `docker kill -s INT` pattern above is what actually works.

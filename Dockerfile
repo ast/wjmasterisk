@@ -39,7 +39,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     uuid-dev \
     libspandsp-dev \
     libsox-dev \
+    xmlstarlet \
     && rm -rf /var/lib/apt/lists/*
+
+# xmlstarlet (above) is required by build_tools/download_externals,
+# which fetches codec_opus.c from downloads.asterisk.org during `make`.
+# Without it the menuselect option flips on but the source never lands,
+# and codec_opus.so silently fails to build.
 
 WORKDIR /usr/src
 RUN wget -nv "https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-${ASTERISK_VERSION}.tar.gz" && \
@@ -48,6 +54,10 @@ RUN wget -nv "https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-${A
 
 WORKDIR /usr/src/asterisk-${ASTERISK_VERSION}
 RUN ./configure --with-pjproject-bundled --with-jansson-bundled && \
+    make menuselect.makeopts && \
+    # codec_opus is required to transcode anything (MoH, prompts, voicemail)
+    # to/from opus channels. Off by default — opt in explicitly here.
+    menuselect/menuselect --enable codec_opus menuselect.makeopts && \
     make -j"$(nproc)" && \
     make DESTDIR=/out install && \
     # /var/run is a symlink to /run in the runtime image, so relocate the

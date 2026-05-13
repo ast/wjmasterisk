@@ -2,7 +2,8 @@
 
 ** Ideas
 
-- Use a tailscale docker
+- Use a tailscale Docker
+  https://tailscale.com/docs/features/containers/docker
 
 ** Using
 
@@ -98,12 +99,15 @@ The compiled apps land in =pjproject/pjsip-apps/bin/=.
 runs on the same machine as the PBX; override for other hosts, e.g.
 =PBX=192.168.1.16= or =PBX=asterisk.local=.
 
-Two registered endpoints on different local ports so they can run side
-by side on the same host:
+To actually call between two extensions you need **two pjsua processes
+running side by side**, one registered as each extension. They use
+different =--local-port= values so they don't fight for the same UDP
+port. Open *two terminals* and run one block in each:
+
+Terminal 1 — register as 6002:
 
 #+begin_src bash
   PBX=${PBX:-127.0.0.1}
-
   pjsua --id sip:6002@$PBX \
         --registrar sip:$PBX \
         --realm '*' \
@@ -111,13 +115,27 @@ by side on the same host:
         --password 6002 \
         --local-port=5063
         # --use-tls   # add for SIP-TLS on 5061
+#+end_src
 
+Terminal 2 — register as 6001:
+
+#+begin_src bash
+  PBX=${PBX:-127.0.0.1}
   pjsua --id sip:6001@$PBX \
         --registrar sip:$PBX \
         --realm '*' \
         --username 6001 \
         --password 6001 \
         --local-port=5062
+#+end_src
+
+Verify both are registered (in a third terminal, against the running
+Asterisk container) — both endpoints should show =Available= with a
+contact listed:
+
+#+begin_src bash
+  docker exec -it $(docker ps -qf ancestor=sm6wjm/asterisk) \
+      asterisk -rx "pjsip show endpoints"
 #+end_src
 
 *** Useful pjsua commands
@@ -147,24 +165,31 @@ The full menu is printed any time you press =?= at the prompt.
 
 *** Making calls
 
-Press =m= then enter a destination URI. With the =PBX= variable from
-above, useful targets:
+Press =m=, then type the destination URI at the =Make call:= prompt.
+This is pjsua's own CLI — *not* a shell — so the =$PBX= variable used
+above is NOT expanded here. Substitute the actual address (or
+=127.0.0.1= when pjsua is on the same machine as Asterisk):
 
-#+begin_src bash
-  sip:6001@$PBX;transport=udp        ; another softphone
-  sip:6010@$PBX;transport=udp        ; an ATA line
-  sip:*43@$PBX;transport=udp         ; echo test — verify audio path
-  sip:*97@$PBX;transport=udp         ; check your own voicemail
-#+end_src
+#+begin_example
+  sip:6001@127.0.0.1;transport=udp     ; another softphone
+  sip:6010@127.0.0.1;transport=udp     ; an ATA line
+  sip:*43@127.0.0.1;transport=udp      ; echo test — repeat your voice
+  sip:*44@127.0.0.1;transport=udp      ; music on hold — one-client audio test
+  sip:*97@127.0.0.1;transport=udp      ; check your own voicemail
+#+end_example
+
+(If you set =PBX=192.168.1.16= when starting pjsua, use that IP in the
+URIs above. The variable substitution happens only in the shell command
+that launches pjsua, not inside pjsua's prompt.)
 
 To answer an incoming call, press =a=. To reject with a specific status,
 press =g= and pick:
 
-#+begin_src bash
+#+begin_example
   200 → answer
   486 → busy
   603 → decline
-#+end_src
+#+end_example
 
 *** Things to try
 
