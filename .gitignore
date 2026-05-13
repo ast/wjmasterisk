@@ -1,3 +1,7 @@
 .#*
 *.tar.gz
 pjproject
+
+# TLS material — generate locally with `just gen-keys`
+etc-asterisk/keys/*.key
+etc-asterisk/keys/*.pem

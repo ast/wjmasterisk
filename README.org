@@ -6,6 +6,7 @@
 
 ** Using
 
+*** Build and run
 
 Build and run via the [[file:justfile][justfile]]:
 
@@ -13,6 +14,8 @@ Build and run via the [[file:justfile][justfile]]:
   just            # list recipes
   just build      # build the docker image
   just run        # run with ./etc-asterisk bind-mounted into the container
+  just lint       # hadolint the Dockerfile
+  just config-test # boot Asterisk briefly and fail on ERROR lines
   just push       # push to the registry
   just all        # build + push
 #+end_src
@@ -24,7 +27,36 @@ Alternatively use docker compose (adds persistent volumes for
   docker compose up --build
 #+end_src
 
-Useful commands inside the Asterisk CLI:
+*** TLS certificates
+
+The SIP-TLS transport (port 5061, configured in
+=etc-asterisk/pjsip.conf= under =[transport-tls]=) expects a cert and
+key under =etc-asterisk/keys/=. Generate a fresh self-signed pair with:
+
+#+begin_src bash
+  just gen-keys                       # CN=asterisk.local, valid 10 years
+  just gen-keys pbx.example.lan 365   # custom CN and validity (days)
+#+end_src
+
+This writes two files into =etc-asterisk/keys/= (both gitignored):
+
+| File           | Role             | Where it lives                                |
+|----------------+------------------+-----------------------------------------------|
+| =asterisk.key= | Private key      | Server only — never copy off the box          |
+| =asterisk.pem= | Public cert      | Distribute to TLS clients that need to trust it |
+
+A self-signed cert is not in any client's default trust store, so each
+SIP-TLS client must either:
+
+1. Import =asterisk.pem= as a trusted root, *or*
+2. Disable certificate verification (fine for a homelab; not for prod).
+
+In pjsua, =--use-tls= turns on TLS; trust-store flags vary by build —
+see =pjsua --help= for =--ca-list=.
+
+*** Asterisk CLI commands
+
+Inside the running Asterisk console:
 
 #+begin_src bash
   # Turn on pjsip logger
@@ -37,6 +69,59 @@ Useful commands inside the Asterisk CLI:
   pjsip show contacts
   core show channels
 
-  # list avialable codecs
+  # list available codecs
   core show codecs
+#+end_src
+
+** Test clients (pjsua / pjproject)
+
+Reference: https://docs.pjsip.org/en/latest/specific-guides/other/cli_cmd.html
+
+*** Building pjproject
+
+#+begin_src bash
+  sudo apt install build-essential libasound2-dev libssl-dev libncurses5-dev \
+       libreadline-dev libavcodec-dev libavformat-dev libswscale-dev libopus-dev
+
+  git clone https://github.com/pjsip/pjproject.git
+  cd pjproject
+  ./configure --enable-shared
+  make dep
+  make -j$(nproc)
+#+end_src
+
+The compiled apps land in =pjproject/pjsip-apps/bin/=.
+
+*** Running pjsua
+
+Two registered endpoints on different local ports so they can run on
+the same host:
+
+#+begin_src bash
+  pjsua --id sip:6002@192.168.1.16 \
+        --registrar sip:192.168.1.16 \
+        --realm '*' \
+        --username 6002 \
+        --password 6002 \
+        --local-port=5063
+        # --use-tls   # add for SIP-TLS on 5061
+
+  pjsua --id sip:6001@192.168.1.16 \
+        --registrar sip:192.168.1.16 \
+        --realm '*' \
+        --username 6001 \
+        --password 6001 \
+        --local-port=5062
+#+end_src
+
+*** Making calls
+
+#+begin_src bash
+  sip:6001@10.60.0.127;transport=udp
+  sip:6002@10.60.0.127;transport=udp
+
+  # answer with one of:
+  # 200 → answer
+  # 486 → busy
+  # 603 → decline
 #+end_src
