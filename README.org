@@ -94,20 +94,26 @@ The compiled apps land in =pjproject/pjsip-apps/bin/=.
 
 *** Running pjsua
 
-Two registered endpoints on different local ports so they can run on
-the same host:
+=PBX= points at the Asterisk host. Default =127.0.0.1= assumes pjsua
+runs on the same machine as the PBX; override for other hosts, e.g.
+=PBX=192.168.1.16= or =PBX=asterisk.local=.
+
+Two registered endpoints on different local ports so they can run side
+by side on the same host:
 
 #+begin_src bash
-  pjsua --id sip:6002@192.168.1.16 \
-        --registrar sip:192.168.1.16 \
+  PBX=${PBX:-127.0.0.1}
+
+  pjsua --id sip:6002@$PBX \
+        --registrar sip:$PBX \
         --realm '*' \
         --username 6002 \
         --password 6002 \
         --local-port=5063
         # --use-tls   # add for SIP-TLS on 5061
 
-  pjsua --id sip:6001@192.168.1.16 \
-        --registrar sip:192.168.1.16 \
+  pjsua --id sip:6001@$PBX \
+        --registrar sip:$PBX \
         --realm '*' \
         --username 6001 \
         --password 6001 \
@@ -116,9 +122,11 @@ the same host:
 
 *** Making calls
 
+From inside pjsua, type the destination URI at the prompt:
+
 #+begin_src bash
-  sip:6001@10.60.0.127;transport=udp
-  sip:6002@10.60.0.127;transport=udp
+  sip:6001@$PBX;transport=udp
+  sip:6002@$PBX;transport=udp
 
   # answer with one of:
   # 200 → answer
