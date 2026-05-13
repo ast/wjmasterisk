@@ -1,0 +1,174 @@
+* Hardware — FXS / ATA configuration
+
+VoIP gateway / ATA setup notes for the analogue phones connected to
+this PBX. The =[ata]= endpoint template in =pjsip.conf= covers
+SIP-to-FXS adapters: plug a regular analogue phone into the adapter's
+=FXS Phone= jack (RJ-11), the adapter handles the SIP side.
+
+Extension range for ATAs is =6010-6019= (per =pjsip.conf=). Each FXS
+port on a multi-port adapter registers as its own extension.
+
+** Common settings
+
+Identical across all three devices (Grandstream HT812, Cisco SPA122,
+Cisco ATA191-MPP). Set these first, then move on to the per-device
+specifics below.
+
+| Setting              | Value                                |
+|----------------------+--------------------------------------|
+| SIP server / proxy   | =$PBX= (the Asterisk host)           |
+| SIP port             | =5060=                               |
+| Transport            | UDP                                  |
+| Outbound proxy       | (leave blank)                        |
+| User / Auth ID       | =6010=, =6011=, … (one per FXS port) |
+| Password             | matching =pjsip.conf=                |
+| Register expires     | 300 s (5 min)                        |
+| Preferred codecs     | G.711 µ-law (=PCMU=) then A-law (=PCMA=) |
+| DTMF mode            | RFC2833                              |
+| NAT traversal        | off (LAN — set =Keep-Alive= if remote) |
+| Use DNS SRV          | no                                   |
+
+Our =[ata]= template restricts the negotiated codec list to ulaw/alaw,
+so picking anything else on the adapter just shortens the SDP offer
+and isn't useful.
+
+* Grandstream HT812
+
+Two FXS ports → two extensions.
+
+- Product page: https://www.grandstream.com/products/gateways-and-atas/analog-telephone-adaptors/product/ht812
+- User guide (PDF): https://www.grandstream.com/hubfs/Product_Documentation/ht81x_user_guide.pdf
+- Firmware downloads: https://www.grandstream.com/support/firmware
+
+** Finding it on the network
+
+Grandstream MAC prefix is =00:0b:82=. Default IP is =192.168.2.1=
+(used in factory-default mode if no DHCP). Two ways to discover an
+HT81x on a live LAN:
+
+#+begin_src bash
+  # Active scan — replace <iface> with your network interface
+  sudo arp-scan --interface=<iface> --localnet | rg "00:0b"
+
+  # Passive sniffing
+  netdiscover -S -f -i <iface>
+#+end_src
+
+** Default credentials
+
+Three account levels, each with its own default password (set these
+to something less guessable on first login under =Maintenance →
+Security Settings=):
+
+| Account level | Username | Default password | Access                             |
+|---------------+----------+------------------+------------------------------------|
+| Administrator | =admin=  | =admin=          | All pages                          |
+| End user      | =user=   | =123=            | Status + Basic Settings only       |
+| Viewer        | =viewer= | =viewer=         | View-only, can't modify anything   |
+
+** Factory reset
+
+Press and hold the rear =RESET= button for ~7 seconds. The manual
+specifies the Ethernet cable should be unplugged while doing this.
+
+** SIP configuration
+
+Web UI at =http://<device-ip>=, log in as =admin=. The HT812 has a
+per-port config page (=FXS PORT1= and =FXS PORT2=); fields below apply
+to each port separately:
+
+| HT812 field                | Value                          |
+|----------------------------+--------------------------------|
+| Account Active             | Yes                            |
+| Primary SIP Server         | =$PBX=                         |
+| SIP Transport              | UDP                            |
+| SIP User ID                | =6010= (port 1), =6011= (port 2) |
+| Authenticate ID            | same as SIP User ID            |
+| Authenticate Password      | matching =pjsip.conf=          |
+| Name (display)             | e.g. "Hallway phone"           |
+| Preferred Vocoder choice 1 | PCMU                           |
+| Preferred Vocoder choice 2 | PCMA                           |
+| Send DTMF                  | via RTP (RFC2833)              |
+| NAT Traversal              | No (LAN)                       |
+| Register Expiration        | 5 (minutes)                    |
+| Use Random SIP Port        | No                             |
+
+After saving, the =Status= page should show =Registered= for the port
+you configured. Cross-check on the PBX:
+
+#+begin_src bash
+  docker exec -it $(docker ps -qf ancestor=sm6wjm/asterisk) \
+      asterisk -rx "pjsip show endpoint 6010"
+#+end_src
+
+The contact line should list the HT812's LAN IP.
+
+** Firmware upgrade
+
+Grandstream hosts current and beta firmware on a public HTTP server.
+Process that's known to work:
+
+1. Web UI → =Maintenance → Upgrade and Provisioning=.
+2. Set =Always Check for New Firmware= to enabled.
+3. Set =Firmware Upgrade Via= to HTTP.
+4. =Firmware Server Path= → =firmware.grandstream.com=.
+5. =Save and Apply=.
+6. Reboot the device and let the upgrade finish.
+
+* Cisco SPA122
+
+Two FXS ports → two lines. Lineage: Sipura → Linksys → Cisco, so the
+UI feels dated.
+
+- Admin guide (PDF): https://www.cisco.com/c/dam/en/us/td/docs/voice_ip_comm/csbpvga/spa100-200/admin_guide_SPA100/spa100_ag_1_3_5.pdf
+
+Web UI at =http://<device-ip>=, default login =admin / admin=. Two
+config pages — =Voice → Line 1= and =Voice → Line 2=:
+
+| SPA122 field          | Value                            |
+|-----------------------+----------------------------------|
+| Line Enable           | yes                              |
+| Proxy                 | =$PBX=                           |
+| Outbound Proxy        | (blank)                          |
+| Use Outbound Proxy    | no                               |
+| Register              | yes                              |
+| Register Expires      | 3600                             |
+| SIP Port              | 5060                             |
+| SIP Transport         | UDP                              |
+| User ID               | =6010= (line 1), =6011= (line 2) |
+| Password              | matching =pjsip.conf=            |
+| Auth ID               | same as User ID                  |
+| Use Auth ID           | yes                              |
+| Preferred Codec       | G711u                            |
+| Use Pref Codec Only   | no (allow fallback to alaw)      |
+| DTMF Tx Method        | AVT (= RFC2833)                  |
+
+Reboot after saving (Cisco's web UI is cranky about applying changes
+without one). The =Info= page shows registration status per line.
+
+* Cisco ATA191-MPP
+
+Single FXS port. Successor to the SPA112. "MPP" = Multiplatform
+firmware — the variant that registers against arbitrary third-party
+SIP PBXes (the non-MPP "Enterprise" firmware only registers to Cisco
+Unified Communications Manager and is the wrong load for us).
+
+- Firmware downloads: https://software.cisco.com/download/home/286320022/type/282074215/release/11.3.1
+
+Web UI at =http://<device-ip>=, default login =admin / admin= or
+=cisco / cisco= depending on shipped firmware:
+
+| ATA 191 field         | Value                            |
+|-----------------------+----------------------------------|
+| Voice → SIP → Proxy 1 | =$PBX=                           |
+| Voice → SIP → Port 1  | 5060                             |
+| Voice → Line 1 Enable | yes                              |
+| User ID               | =6010=                           |
+| Password              | matching =pjsip.conf=            |
+| Auth ID               | same as User ID                  |
+| Preferred Codec       | G.711u                           |
+| DTMF Tx Method        | AVT                              |
+| Register Expires      | 300                              |
+
+Save & reboot. The =System Status= page lists each line's
+registration state.
