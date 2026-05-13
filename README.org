@@ -1,5 +1,26 @@
 * Asterisk notes
 
+** About
+
+A self-hosted PBX for a small private network, packaged as a Docker
+image. Built on Asterisk 23.3.0 (compiled from the upstream tarball
+inside the Dockerfile; multistage build on Debian 13 Trixie, ~370 MB
+final image).
+
+Intended use case is a handful of phones at home, mixing:
+
+- *softphones* on laptops/desktops (Linphone, MicroSIP, Zoiper, pjsua …),
+- *analogue phones* via SIP-to-FXS adapters (Grandstream HT812, Cisco
+  SPA122, Cisco ATA191-MPP — see [[file:HARDWARE.org][HARDWARE.org]] for per-device setup),
+- a *mobile SIP client* reaching the PBX over TLS+SRTP.
+
+The =[softphone]=, =[ata]= and =[mobile]= endpoint templates in
+=etc-asterisk/pjsip.conf= cover those three cases; adding a new phone
+is a ~6-line copy-paste. All configuration lives in =etc-asterisk/=
+and is bind-mounted live — edit a file, reload (=pjsip reload= /
+=dialplan reload= / =module reload= from the Asterisk console), no
+image rebuild needed.
+
 ** Ideas
 
 - Use a tailscale Docker
