@@ -78,29 +78,79 @@ see =pjsua --help= for =--ca-list=.
 
 *** Asterisk CLI commands
 
-Inside the running Asterisk console:
+Run these inside the running Asterisk console (the =-cvvv= foreground
+process). To get a console against a container started detached or
+via compose:
 
 #+begin_src bash
-  # Turn on pjsip logger
-  pjsip set logger on
-  # Show registrations
-  pjsip show registrations
-  # RTP show settings
-  rtp show settings
-  pjsip show aors
-  pjsip show contacts
-  core show channels
+  docker exec -it asterisk asterisk -rvvv          # compose (container_name: asterisk)
+  docker exec -it $(docker ps -qf ancestor=sm6wjm/asterisk) asterisk -rvvv   # just run
+#+end_src
 
-  # list available codecs
-  core show codecs
+You can also fire a single command without an interactive console
+using =asterisk -rx "<command>"=.
+
+**** Reload config (no restart, no rebuild)
+
+=etc-asterisk/= is bind-mounted live — edit a file, then reload the
+relevant subsystem:
+
+#+begin_src bash
+  dialplan reload        # after editing extensions.conf
+  pjsip reload           # after editing pjsip.conf (endpoints, transports)
+  module reload          # reload everything that supports it
+  voicemail reload       # after editing voicemail.conf
+  moh reload             # after editing musiconhold.conf
+  core reload            # broad reload — most .conf files at once
+#+end_src
+
+**** Inspect registrations and endpoints
+
+#+begin_src bash
+  pjsip show endpoints           # every endpoint + its current state
+  pjsip show endpoint 6010       # one endpoint in full detail
+  pjsip show aors                # AORs and their configured contacts
+  pjsip show contacts            # who is actually registered right now
+  pjsip show registrations       # outbound registrations (if any)
+  pjsip show transports          # the UDP/TCP/TLS listeners
+#+end_src
+
+**** Live calls
+
+#+begin_src bash
+  core show channels             # active channels (one row per call leg)
+  core show channels verbose     # same, with more columns
+  core show channel <name>       # deep detail on one channel
+  hangup request <name>          # drop a stuck call
+#+end_src
+
+**** Debugging SIP and audio
+
+#+begin_src bash
+  pjsip set logger on            # dump every SIP packet to the console
+  pjsip set logger off
+  rtp set debug on               # log RTP flow — use for one-way-audio bugs
+  rtp show settings              # the configured RTP port range
+  core set verbose 5             # more chatty console
+  core set debug 3               # internal debug logging
+#+end_src
+
+**** General
+
+#+begin_src bash
+  core show codecs               # codecs this build knows about
+  core show uptime               # how long Asterisk has been up
+  core show settings             # version, paths, channel counts
+  core waitfullybooted           # blocks until startup is complete (used by the healthcheck)
 #+end_src
 
 ** Hardware (FXS / ATA configuration)
 
-Configuration notes for the analogue-phone adapters (Grandstream
-HT812, Cisco SPA122, Cisco ATA191-MPP) live in [[file:HARDWARE.org][HARDWARE.org]] —
-default credentials, factory-reset procedure, firmware upgrade,
-network discovery, and per-device SIP field tables.
+Configuration notes for the analogue-phone adapters live in
+[[file:HARDWARE.org][HARDWARE.org]] — common ATA settings plus per-device SIP field tables
+for the Cisco SPA122 and ATA191-MPP. The primary adapter, the
+Grandstream HT812, has its own full walkthrough in [[file:HT812.org][HT812.org]]
+(network discovery, web-UI fields, rotary-phone support, gotchas).
 
 ** Test clients (pjsua / pjproject)
 

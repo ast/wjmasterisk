@@ -1,22 +1,183 @@
-* Grandstream HT812 — minimal config walkthrough
+* Grandstream HT812
 
-Settings to *change* on a factory-default HT812 to make it register
-two FXS ports against this Asterisk PBX. Anything not listed below
-can be left at its factory default.
+Two-port SIP-to-FXS adapter — plug an analogue phone into each =FXS=
+jack (RJ-11) and it registers as a SIP endpoint. This is the primary
+ATA for this PBX; the =[ata]= endpoint template in =pjsip.conf= is
+built around it.
 
-Target:
+- Product page: https://www.grandstream.com/products/gateways-and-atas/analog-telephone-adaptors/product/ht812
+- User guide (PDF): https://www.grandstream.com/hubfs/Product_Documentation/ht81x_user_guide.pdf
+- Firmware downloads: https://www.grandstream.com/support/firmware
+
+Target for this walkthrough:
 - Port 1 (FXS 1) → SIP extension =6010=
 - Port 2 (FXS 2) → SIP extension =6011=
 - LAN only, UDP, G.711 (no SRTP, no NAT traversal)
 
-** 0. Before you log in
+General ATA settings that apply to *every* adapter (codec list, DTMF
+mode, register expiry, …) live in [[file:HARDWARE.org][HARDWARE.org]]; this file is the
+HT812-specific detail.
 
-- Cable in the *WAN* port (silkscreened "INTERNET"). Leave LAN unplugged.
-- First boot the device falls back to =192.168.2.1= if no DHCP.
-  See =HARDWARE.org → Finding it on the network= if it's hiding.
-- Default web login: =admin / admin= (change later — see step 1).
+** Which Ethernet port to use
 
-** 1. BASIC SETTINGS
+The HT812 has two RJ45 jacks because it ships as a small NAT router:
+
+- =WAN= — uplink toward your network. Gets an IP by DHCP (or falls
+  back to =192.168.2.1= if no lease).
+- =LAN= — downstream port. By default the device hands out DHCP and
+  NATs traffic from anything plugged in here.
+
+For this PBX setup the HT812 is *just a SIP endpoint*, not a router.
+So:
+
+- *Plug the cable into the =WAN= port.* That's the one labelled
+  "INTERNET" on the silkscreen.
+- *Leave the =LAN= port unplugged.*
+- After first boot, log into the web UI and set
+  =Basic Settings → Device Mode= to *Bridge* (sometimes called
+  "Network Mode"). This disables the built-in DHCP server and NAT so
+  the unit really is just an ATA — no router behaviour to surprise you
+  later.
+
+** Finding it on the network
+
+Grandstream's OUI is =00:0b:82=. Every HT81x's MAC starts with it,
+which makes "find me a Grandstream on this LAN" much easier than
+guessing IPs. Pick the lowest-friction path that works for your case
+below.
+
+*** 1. Check the neighbour cache first (zero tools, no sudo)
+
+If anyone on this host has talked to the HT81x recently — even just an
+ICMPv6 router-solicit — Linux's neighbour cache already has its MAC:
+
+#+begin_src bash
+  ip neigh | rg -i '00:0b:82'
+#+end_src
+
+A hit means the device is alive on that interface. =REACHABLE= is
+fresh, =STALE= means it was seen earlier and might still be there
+(re-ping to verify), =FAILED= means it's gone.
+
+*** 2. Active sweep when it has an IPv4 lease
+
+If the HT81x got a DHCP lease (normal case), sweeping the subnet
+populates the ARP table and you grep the OUI back out. Three flavours
+depending on what's installed:
+
+#+begin_src bash
+  # Best when arp-scan is installed (uses raw ARP, no ICMP needed)
+  sudo arp-scan --interface=<iface> --localnet | rg '00:0b:82'
+
+  # nmap ping-sweep — also needs sudo to send ARP
+  sudo nmap -sn -e <iface> 192.168.1.0/24
+  ip neigh show dev <iface> | rg '00:0b:82'
+
+  # No-sudo fallback: TCP-probe :80 across the subnet. Each handshake
+  # forces an ARP resolve, so the neighbour cache fills up naturally.
+  for i in $(seq 1 254); do
+    (nc -z -w1 192.168.1.$i 80 >/dev/null 2>&1 && echo "192.168.1.$i:80") &
+  done; wait
+  ip neigh show dev <iface> | rg '00:0b:82'
+
+  # Passive sniffing — handy if the device isn't talking yet
+  sudo netdiscover -S -f -i <iface>
+#+end_src
+
+The IPv4 next to the matching MAC is the one to browse to.
+
+*** 3. Factory-default fallback at =192.168.2.1=
+
+With no DHCP lease the HT81x hardcodes its WAN to =192.168.2.1=. That
+IP isn't on your normal subnet (=192.168.1.0/24=), so ICMP/TCP from
+your host won't even leave the box — the kernel has no route to it.
+Add a temporary in-subnet alias on the interface and the device shows
+up at the link layer:
+
+#+begin_src bash
+  sudo ip addr add 192.168.2.10/24 dev <iface>
+  # Probe :80 across the factory-default range
+  for i in $(seq 1 254); do
+    (nc -z -w1 192.168.2.$i 80 >/dev/null 2>&1 && echo "192.168.2.$i:80") &
+  done; wait
+  ip neigh show dev <iface> | rg '00:0b:82'
+  # Cleanup once you've moved it to DHCP:
+  sudo ip addr del 192.168.2.10/24 dev <iface>
+#+end_src
+
+The "right" fix after this is to log into the web UI and set
+=Basic Settings → IP Address → Address Type= to =DHCP=, then reboot —
+the device will then take a lease in your normal subnet and the alias
+is no longer needed.
+
+*** 4. IPv6 link-local — works even without any IPv4
+
+The HT81x replies on IPv6 link-local regardless of its IPv4 state, so
+you can open its web UI without faffing with alias subnets at all.
+EUI-64 derives the v6 address straight from the MAC: flip bit 1 of the
+first octet and insert =ff:fe= in the middle.
+
+For MAC =00:0b:82:XX:YY:ZZ= → =fe80::20b:82ff:feXX:YYZZ=.
+
+Probe and ping:
+
+#+begin_src bash
+  # Force the v6 ping out the wired interface
+  ping6 -c1 -I <iface> fe80::20b:82ff:feb7:be38
+  # Then check the neighbour cache for any 00:0b:82
+  ip -6 neigh show dev <iface> | rg '00:0b:82'
+#+end_src
+
+Open the web UI directly (URL-encode the =%= before the zone-id):
+
+#+begin_example
+  http://[fe80::20b:82ff:feb7:be38%25<iface>]/
+#+end_example
+
+Firefox tip: pasting that into the address bar gets it routed to the
+search engine instead of opened. Workarounds: right-click → "Paste &
+Go", press Alt+Enter, or put the URL inside an =<a href="...">= in a
+local HTML file and click it.
+
+Once you're in, =Status → Network Status= shows the current IPv4 (if
+any) and the firmware version.
+
+** Default credentials
+
+Three account levels, each with its own default password (set these
+to something less guessable on first login under =Maintenance →
+Security Settings=):
+
+| Account level | Username | Default password | Access                             |
+|---------------+----------+------------------+------------------------------------|
+| Administrator | =admin=  | =admin=          | All pages                          |
+| End user      | =user=   | =123=            | Status + Basic Settings only       |
+| Viewer        | =viewer= | =viewer=         | View-only, can't modify anything   |
+
+** Factory reset
+
+Press and hold the rear =RESET= button for ~7 seconds. The manual
+specifies the Ethernet cable should be unplugged while doing this.
+
+** Firmware upgrade
+
+Grandstream hosts current and beta firmware on a public HTTP server.
+Process that's known to work:
+
+1. Web UI → =Maintenance → Upgrade and Provisioning=.
+2. Set =Always Check for New Firmware= to enabled.
+3. Set =Firmware Upgrade Via= to HTTP.
+4. =Firmware Server Path= → =firmware.grandstream.com=.
+5. =Save and Apply=.
+6. Reboot the device and let the upgrade finish.
+
+** Configuration
+
+Settings to *change* on a factory-default HT812 to make it register
+two FXS ports against this Asterisk PBX. Anything not listed below can
+be left at its factory default.
+
+*** 1. Basic settings
 
 | Field                  | Change to                | Why                               |
 |------------------------+--------------------------+-----------------------------------|
@@ -28,7 +189,7 @@ Target:
 After saving here, the device reboots and grabs a normal
 =192.168.1.x= lease. From now on, browse to the new IP.
 
-** 2. PROFILE 1
+*** 2. Profile 1
 
 This is the SIP profile both FXS ports will use.
 
@@ -58,7 +219,7 @@ Everything else on this page stays at its default. In particular:
 Click *Update*, then move to FXS PORTS *before* you Apply/Reboot —
 you can batch everything into one reboot.
 
-** 3. FXS PORTS
+*** 3. FXS ports
 
 The per-port table near the top of the FXS PORTS page. One row per
 port:
@@ -76,7 +237,7 @@ port:
 Defaults for the rest of FXS PORTS are fine, *except* if a rotary
 phone is plugged in — see below.
 
-*** Rotary / pulse-dial phones
+**** Rotary / pulse-dial phones
 
 Only relevant for ports with a rotary phone. TouchTone handsets and
 modern cordless phones use DTMF and need none of this.
@@ -92,11 +253,11 @@ Limitation: rotary phones can't dial =*= or =#=, so the feature codes
 plain-number aliases in =etc-asterisk/extensions.conf= if you want
 them — e.g. =800= → echo, =801= → MoH, =802= → voicemail.
 
-** 4. Apply and reboot
+*** 4. Apply and reboot
 
 Bottom of any page: *Apply*, then *Reboot*. Wait ~30 s.
 
-** 5. Verify
+*** 5. Verify
 
 On the HT812:
 - =Status → Port Status= should show =Registered= for both ports.

@@ -4,6 +4,7 @@
 *.tar.gz
 etc-asterisk
 README*
+*.org
 CLAUDE.md
 justfile
 compose.yaml
