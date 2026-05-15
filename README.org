@@ -21,11 +21,6 @@ and is bind-mounted live — edit a file, reload (=pjsip reload= /
 =dialplan reload= / =module reload= from the Asterisk console), no
 image rebuild needed.
 
-** Ideas
-
-- Use a tailscale Docker
-  https://tailscale.com/docs/features/containers/docker
-
 ** Using
 
 *** Build and run
@@ -75,6 +70,31 @@ SIP-TLS client must either:
 
 In pjsua, =--use-tls= turns on TLS; trust-store flags vary by build —
 see =pjsua --help= for =--ca-list=.
+
+*** Tailscale setup
+
+To reach the PBX over Tailscale from remote clients, install and authenticate
+Tailscale on the Proxmox VM with DNS interception disabled:
+
+#+begin_src bash
+  tailscale up --accept-dns=false
+#+end_src
+
+The =--accept-dns=false= flag is critical for SIP: Tailscale's DNS rewriting
+can interfere with SIP's use of DNS SRV records and host lookups, causing
+registration and routing failures. Disable it to let the system use its
+configured resolvers.
+
+*Important*: The Asterisk container uses =network_mode: host= (in compose) or
+=--network host= (via =just run=) rather than Docker bridge networking. This is
+required for SIP — the protocol embeds the server's IP address in SDP payloads,
+and container-to-host address translation breaks SIP signaling between remote
+clients and the PBX. With host networking, Asterisk binds directly on the VM's
+interfaces, where Tailscale routes to it transparently.
+
+Remote clients on the same Tailscale network can then register to the PBX at
+its Tailscale IP (e.g., =sip:6001@100.x.x.x;transport=tls=) with no additional
+firewall configuration.
 
 *** Asterisk CLI commands
 
