@@ -44,6 +44,40 @@ Alternatively use docker compose (adds persistent volumes for
   docker compose up --build
 #+end_src
 
+*** docker compose
+
+Why compose rather than =just run= for the persistent deployment:
+
+- =restart: unless-stopped= brings Asterisk back after a reboot or a
+  crash, without needing a systemd unit.
+- =stop_signal: SIGINT= — Asterisk only shuts down cleanly on SIGINT.
+  Docker's default SIGTERM cuts in-flight calls and half-writes
+  voicemail recordings; compose handles this so =docker compose down=
+  is safe.
+- Named volumes for =/var/spool/asterisk= (voicemail, MoH),
+  =/var/lib/asterisk= (CDRs, astdb) and =/var/log/asterisk= survive
+  container recreation — =just run= drops all of those on exit.
+- Healthcheck via =core waitfullybooted=, so =docker ps= shows
+  =healthy= once the dialplan is loaded and the AMI/CLI socket is up.
+
+The foreground PID 1 inside the container is =asterisk -cvvv=, whose
+stdin is owned by compose. Don't =docker attach=: a stray =Ctrl-C=
+would SIGINT PID 1 and shut Asterisk down. Open a *remote console*
+over the CLI socket instead — it's a separate connection, safe to
+disconnect:
+
+#+begin_src bash
+  docker compose exec asterisk asterisk -rvvv
+#+end_src
+
+Exit with =exit= or =Ctrl-D=. For one-shot commands (same mechanism
+the healthcheck uses):
+
+#+begin_src bash
+  docker compose exec asterisk asterisk -rx "pjsip show registrations"
+  docker compose exec asterisk asterisk -rx "pjsip set logger on"
+#+end_src
+
 *** TLS certificates
 
 The SIP-TLS transport (port 5061, configured in
