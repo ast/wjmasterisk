@@ -336,3 +336,60 @@ active account):
 | =*44=       | Music on hold — one-way audio test        |
 | =*97=       | Voicemail                                 |
 | =6001=      | Another softphone (must be registered)    |
+
+*** Zoiper
+
+**** Configuration
+
+| Field        | Value                                      |
+|--------------+--------------------------------------------|
+| Username     | =6003= (or any configured extension)       |
+| Display name | =6003= (optional)                          |
+| Domain       | =asterisk.local= (or IP/Tailscale address) |
+| Password     | same as username (default)                 |
+| Transport    | UDP (or TLS for =5061=)                    |
+
+Launch Zoiper and select "Add account". Enter the SIP credentials above.
+For remote access via Tailscale, use the Tailscale IP or hostname
+(e.g., =100.x.x.x=) as the domain.
+
+**** Making calls
+
+Dial directly in the keypad or contact list. The same test extensions work:
+
+| Destination | What it does                              |
+|-------------+-------------------------------------------|
+| =*43=       | Echo test — repeats your voice back       |
+| =*44=       | Music on hold — one-way audio test        |
+| =*97=       | Voicemail                                 |
+| =6001=      | Another softphone (must be registered)    |
+
+*** MicroSIP (Windows only)
+
+⚠️ *Note: MicroSIP runs on Windows only.*
+
+**** Configuration
+
+Download from [[https://www.microsip.org/][microsip.org]]. Launch and go to =Settings= → =Accounts=:
+
+| Field        | Value                                      |
+|--------------+--------------------------------------------|
+| Display name | =6004=                                     |
+| User name    | =6004= (or any configured extension)       |
+| Server       | =asterisk.local= (or IP/Tailscale address) |
+| Password     | same as username (default)                 |
+| Transport    | UDP (leave blank) or TLS for =5061=       |
+
+Apply, and MicroSIP will register automatically.
+
+**** Making calls
+
+Double-click a contact or type directly in the dial field. Same test
+extensions as other softphones:
+
+| Destination | What it does                              |
+|-------------+-------------------------------------------|
+| =*43=       | Echo test — repeats your voice back       |
+| =*44=       | Music on hold — one-way audio test        |
+| =*97=       | Voicemail                                 |
+| =6001=      | Another softphone (must be registered)    |
