@@ -7,12 +7,7 @@
 
 services:
   asterisk:
-    build:
-      context: .
-      args:
-        # Keep in sync with `asterisk_version` in justfile.
-        ASTERISK_VERSION: "23.3.0"
-    image: sm6wjm/asterisk:latest
+    image: ghcr.io/ast/wjmasterisk:latest
     container_name: asterisk
 
     # Host networking: Asterisk binds directly on the host's interfaces

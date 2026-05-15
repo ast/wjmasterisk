@@ -104,7 +104,7 @@ via compose:
 
 #+begin_src bash
   docker exec -it asterisk asterisk -rvvv          # compose (container_name: asterisk)
-  docker exec -it $(docker ps -qf ancestor=sm6wjm/asterisk) asterisk -rvvv   # just run
+  docker exec -it $(docker ps -qf ancestor=ghcr.io/ast/wjmasterisk) asterisk -rvvv   # just run
 #+end_src
 
 You can also fire a single command without an interactive console
@@ -232,7 +232,7 @@ Asterisk container) — both endpoints should show =Available= with a
 contact listed:
 
 #+begin_src bash
-  docker exec -it $(docker ps -qf ancestor=sm6wjm/asterisk) \
+  docker exec -it $(docker ps -qf ancestor=ghcr.io/ast/wjmasterisk) \
       asterisk -rx "pjsip show endpoints"
 #+end_src
 

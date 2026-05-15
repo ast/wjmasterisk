@@ -1,5 +1,5 @@
 # --- Configuration ---
-image_name        := "sm6wjm/asterisk"
+image_name        := "ghcr.io/ast/wjmasterisk"
 tag               := "latest"
 full_image        := image_name + ":" + tag
 asterisk_version  := "23.3.0"
