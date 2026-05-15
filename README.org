@@ -74,7 +74,7 @@ see =pjsua --help= for =--ca-list=.
 *** Tailscale setup
 
 To reach the PBX over Tailscale from remote clients, install and authenticate
-Tailscale on the Proxmox VM with DNS interception disabled:
+Tailscale on the host machine with DNS interception disabled:
 
 #+begin_src bash
   tailscale up --accept-dns=false
