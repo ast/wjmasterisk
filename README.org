@@ -172,11 +172,13 @@ for the Cisco SPA122 and ATA191-MPP. The primary adapter, the
 Grandstream HT812, has its own full walkthrough in [[file:HT812.org][HT812.org]]
 (network discovery, web-UI fields, rotary-phone support, gotchas).
 
-** Test clients (pjsua / pjproject)
+** Softphones
 
 Reference: https://docs.pjsip.org/en/latest/specific-guides/other/cli_cmd.html
 
-*** Building pjproject
+*** pjsua (pjproject)
+
+**** Building pjproject
 
 #+begin_src bash
   sudo apt install build-essential libasound2-dev libssl-dev libncurses5-dev \
@@ -191,7 +193,7 @@ Reference: https://docs.pjsip.org/en/latest/specific-guides/other/cli_cmd.html
 
 The compiled apps land in =pjproject/pjsip-apps/bin/=.
 
-*** Running pjsua
+**** Running pjsua
 
 =PBX= points at the Asterisk host. Default =127.0.0.1= assumes pjsua
 runs on the same machine as the PBX; override for other hosts, e.g.
@@ -236,7 +238,7 @@ contact listed:
       asterisk -rx "pjsip show endpoints"
 #+end_src
 
-*** Useful pjsua commands
+**** Useful pjsua commands
 
 Once pjsua is running you get an interactive prompt. The most useful
 single-letter commands:
@@ -261,7 +263,7 @@ single-letter commands:
 
 The full menu is printed any time you press =?= at the prompt.
 
-*** Making calls
+**** Making calls
 
 Press =m=, then type the destination URI at the =Make call:= prompt.
 This is pjsua's own CLI — *not* a shell — so the =$PBX= variable used
@@ -289,7 +291,7 @@ press =g= and pick:
   603 → decline
 #+end_example
 
-*** Things to try
+**** Things to try
 
 - =*43= from any phone — the echo test will repeat your voice back. If
   you hear yourself, the audio path is healthy in both directions.
@@ -301,3 +303,36 @@ press =g= and pick:
 - Change codec priority with =Cp= and observe negotiation in the
   Asterisk CLI with =pjsip set logger on= → look for the m= line in
   the SDP.
+
+*** Linphone
+
+**** Configuration
+
+| Field        | Value                                          |
+|--------------+------------------------------------------------|
+| Username     | =6002= (or any configured extension)           |
+| Display name | =6002= (optional)                              |
+| SIP Domain   | =asterisk= (Tailscale hostname)                |
+| Password     | same as username (default)                     |
+| Transport    | UDP                                            |
+
+The SIP domain should be the Tailscale hostname of the Asterisk VM. If the
+short hostname does not resolve, use the full Tailscale domain
+(=asterisk.<tailnet>.ts.net=).
+
+**** Making calls
+
+Before dialling, confirm the =6002= account is selected as the active account in
+Linphone (shown in the top bar or account switcher). If another account or the
+system identity is active, Asterisk will reject the call with "No matching
+endpoint found".
+
+Dial by typing the extension directly (Linphone fills in the domain from the
+active account):
+
+| Destination | What it does                              |
+|-------------+-------------------------------------------|
+| =*43=       | Echo test — repeats your voice back       |
+| =*44=       | Music on hold — one-way audio test        |
+| =*97=       | Voicemail                                 |
+| =6001=      | Another softphone (must be registered)    |
