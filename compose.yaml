@@ -35,14 +35,52 @@ services:
       # full / messages / queue_log.
       - asterisk_log:/var/log/asterisk
 
+    # Opts this container into restarts by the autoheal sidecar below
+    # when the healthcheck flips to unhealthy.
+    labels:
+      - autoheal=true
+
     healthcheck:
-      # `core waitfullybooted` returns once Asterisk is past startup;
-      # exits non-zero if the AMI/CLI socket isn't reachable.
-      test: ["CMD", "asterisk", "-rx", "core waitfullybooted"]
+      # Exercise the SQLite write path the way registrations do: write a
+      # rotating key into astdb and read it back. Catches the failure
+      # mode where the CLI socket happily responds but `ast_db_put`
+      # can't write (disk full, astdb corrupt, …) — `core waitfullybooted`
+      # alone missed that twice. `$$` escapes compose's own variable
+      # interpolation so the shell sees `$(…)` and `$s` at runtime.
+      test:
+        - "CMD-SHELL"
+        # `>-` is a YAML folded scalar: the continuation lines below are
+        # joined with single spaces into one shell command at runtime.
+        - >-
+            s=$$(date +%s) &&
+            asterisk -rx "database put healthcheck stamp $$s" >/dev/null &&
+            asterisk -rx "database get healthcheck stamp" | grep -q "$$s"
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 60s
+
+    # Docker's default json-file driver has no rotation. Without these
+    # caps a chatty failure mode (e.g. astdb errors spamming the log a
+    # few times per second) can fill the host disk in days. Caps the
+    # log at 3 × 10 MB per container = 30 MB max.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Watches containers labelled `autoheal=true` (the default) and
+  # restarts any that report unhealthy. Without this, compose's
+  # `restart: unless-stopped` only acts on container *exit*, so the
+  # asterisk healthcheck above would be purely informational. Only
+  # needs the docker socket — no network of its own.
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: autoheal
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   asterisk_spool:

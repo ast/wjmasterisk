@@ -21,6 +21,10 @@ and is bind-mounted live — edit a file, reload (=pjsip reload= /
 =dialplan reload= / =module reload= from the Asterisk console), no
 image rebuild needed.
 
+See [[file:IDEAS.org][IDEAS.org]] for a brainstorm of directions to take this further —
+feature codes, IVR, conferencing, home-automation hooks, hardware to
+add, ops & security.
+
 ** Using
 
 *** Build and run

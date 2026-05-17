@@ -1,0 +1,436 @@
+* PBX ideas
+
+Loose brainstorm of directions to take the home PBX. Nothing here is
+committed work — pick whatever sounds fun. Each idea names the Asterisk
+piece (module / config file / extension number) it would touch, so the
+"is this an evening or a weekend?" answer is roughly visible at a glance.
+
+Numbering convention reused from =pjsip.conf=: =6001-6009= softphones,
+=6010-6019= ATAs, =6020-6029= mobile. Feature codes already in use:
+=*43= (echo), =*44= (MoH), =*97= (voicemail), =800/801/802= (rotary
+aliases). Anything below picks a code that doesn't collide.
+
+** Calling features (dialplan-level)
+
+*** Call parking
+
+=*70= parks the active call in a numbered slot; anyone on any phone
+can pick it up by dialling the slot number. Needs =res_parking.so=
+loaded plus a =res_parking.conf= block defining the parking lot. Great
+for "I'll grab this on the office softphone" without putting the
+caller on hold.
+
+*** Pickup groups
+
+=*8= answers a phone that is ringing somewhere else in the house —
+useful when the kitchen ATA rings and you're at the desk. Add
+=named_pickup_group=family= to the endpoint template in =pjsip.conf=
+and an extension that calls =PickupChan(PJSIP/${EXTEN})= (or just
+=Pickup()= for unscoped pickup).
+
+*** Ring / hunt groups
+
+Dial a single number (e.g. =600=) and have several phones ring at
+once, first to answer wins. Pure dialplan:
+=Dial(PJSIP/6001&PJSIP/6010&PJSIP/6011,30)=. Sequential hunt (next
+phone after each timeout) is a slightly more involved variant using
+=Queue= or chained =Dial= calls.
+
+*** Intercom / auto-answer paging
+
+Dial =*80<ext>= and the target phone auto-answers on speaker. Built
+into Asterisk as =Page()=; for the Grandstream HT812 it relies on the
+=Call-Info: answer-after=0= header (enable "Allow Auto-Answer by
+Call-Info" on the ATA). Set up once, then it's a free intercom across
+the whole house.
+
+*** All-phones page
+
+Dial =*81= to talk through every phone at once ("dinner is ready!").
+=Page(PJSIP/6001&PJSIP/6010&PJSIP/6011,d)= — the =d= flag makes it
+duplex if you want talk-back, omit it for announce-only. Combine with
+a SIP paging horn in §10 for whole-house coverage.
+
+*** Do Not Disturb
+
+=*78= toggles DND on the calling extension, =*79= clears it. Store
+state in =AstDB=, check it from the =_6XXX= rule before dialling. Per
+extension, persists across reloads — much nicer than the
+per-handset DND on the HT812.
+
+*** Blocklist / VIP routing
+
+Match =${CALLERID(num)}= against an =AstDB= list. Blocked numbers go
+to =Congestion()= (caller hears fast-busy); VIPs get a distinctive
+ring or skip straight to the mobile. Only really useful once a SIP
+trunk is in place and PSTN spam can actually reach you.
+
+*** Speed-dial out
+
+=9XX= shortcuts to frequently-called external numbers (grandparents,
+takeaway). Same pattern as =_6XXX=, but the dialled number is looked
+up in a small table and =Dial=ed out the trunk instead of in-house.
+
+** Auto-attendant & time conditions
+
+*** IVR welcome menu
+
+Outside callers hit "Press 1 for kitchen, 2 for office, # for
+voicemail". =Background()= to play the prompt, =WaitExten()= to
+collect the digit, then route accordingly. Record the prompts via a
+small =Record()= extension or drop pre-cooked WAVs into
+=/var/lib/asterisk/sounds/custom/=.
+
+*** Quiet-hours routing
+
+=GotoIfTime()= skips ringing the ATAs after 22:00 and routes straight
+to voicemail. Holidays are the same construct, one block per holiday
+date. Pairs nicely with a "we're sleeping, leave a message"
+time-of-day greeting.
+
+*** Recorded announcements
+
+=Playback()= a custom greeting before ringing the phones — "you've
+reached the Stigo household". Trivial to add to any inbound route,
+nice touch for friends-and-family inbound calls.
+
+** Voicemail upgrades
+
+*** Voicemail-to-email
+
+Add =email==, =attach=yes=, and =format=wav49|gsm= per mailbox in
+=voicemail.conf=. Each new message arrives in your inbox with the
+audio attached. Needs an SMTP relay reachable from the container —
+=msmtp= sidecar pointing at a real mail host is the simplest.
+
+*** Voicemail transcription
+
+Pipe the WAV through =whisper.cpp= (local) or a cloud STT and append
+the transcript to the email body. Hook via
+=externnotify=/usr/local/bin/vm-transcribe.sh= in =voicemail.conf= —
+Asterisk runs the script after each save, you get back text in
+seconds.
+
+*** MWI on the analogue phones
+
+The HT812 supports stutter dial-tone (and the message-waiting LED, if
+the handset has one) for waiting voicemails — confirm "Subscribe for
+MWI" is enabled on the ATA. The PBX already publishes MWI events;
+this is a one-checkbox win on the ATA side.
+
+*** Time-of-day outgoing greetings
+
+Different IVR greeting before / after hours, swap with =GotoIfTime=.
+Same mechanism as quiet-hours routing, just on the prompt side.
+
+** PSTN / talking to the outside world
+
+*** SIP trunk
+
+Sign up with a VoIP provider (Telnyx, voip.ms, sipgate, 46elks for SE
+numbers) to get a real phone number. Inbound DID rings the IVR or a
+ring group; outbound =9XXXXXX= routes through the trunk. If the trunk
+requires it, set =external_media_address= /
+=external_signaling_address= in =pjsip.conf= so SDP/Contact headers
+carry the public IP.
+
+*** Multiple DIDs per person
+
+Give each family member their own external number on the trunk, route
+each DID to that person's extension. Most providers charge around €1
+per number per month — cheap way to give the kids their own phone
+number for school admin.
+
+*** Emergency dialling caveat
+
+VoIP trunks generally cannot reach SE 112 / US 911 reliably (no
+guaranteed location data, no SLA). Worth documenting once and keeping
+a mobile in the house as the emergency fallback. Some trunks support
+E911 in the US for an extra fee; check before relying on it.
+
+*** Fax via T.38
+
+=udptl.conf= is already loaded. Pair with =res_fax_spandsp.so= to
+send/receive PDFs as faxes, or with a fax-capable ATA (HT813 has FXO,
+HT812 is FXS-only). Almost no real-world use left in 2026, but
+satisfying to have working.
+
+*** Call forwarding to mobile
+
+When 6010 doesn't answer in 20 s, fall through to your cellular
+number via the trunk instead of voicemail. =Dial(PJSIP/6010,20)= then
+=Dial(PJSIP/trunk/+46701234567,20)= then voicemail as final fallback.
+Two-line dialplan change once a trunk exists.
+
+** Conferencing
+
+*** ConfBridge room
+
+=8000= enters a permanent conference bridge. Family members dial in
+for a five-minute "everyone home for dinner?" sync.
+=confbridge.conf= defines profiles — mute/unmute, recording, MoH
+while waiting for the host, etc.
+
+*** PIN-protected bridge
+
+Same idea but =Authenticate()= prompts for a code first. Useful the
+moment any extension becomes reachable from outside Tailscale.
+
+*** Scheduled standing call
+
+A cron job uses AMI =Originate= to dial every family extension into
+the bridge at 18:00 on Sundays. The phones ring, the family picks up,
+everyone is already on the same call — no "are you there yet?"
+fumbling.
+
+** Provisioning (zero-touch phone setup)
+
+*** HTTP provisioning for Grandstream
+
+Host an XML config at =http://asterisk/provision/cfg<MAC>.xml=. New
+HT812s and GXP/GRP desk phones fetch their config on boot — no more
+clicking through 40 web-UI fields per device (see [[file:HT812.org][HT812.org]] for
+how tedious that currently is). Big quality-of-life win for adding
+the next phone.
+
+*** Templated provisioning server
+
+An =nginx= sidecar serving per-MAC config blobs rendered from a
+template. Secrets injected at render time, so the git repo never
+holds plaintext SIP passwords. Stretch goal: serve over HTTPS with a
+client-cert check so a stolen MAC alone isn't enough.
+
+*** Per-device password generation
+
+Replace the placeholder convention (username == password,
+=";; change me"= comments in =pjsip.conf=) with random 20-character
+passwords stored in =pass= / =age= / sops, injected at provision
+time. Finally retires those TODOs.
+
+** Programmability (AMI / ARI / Stasis)
+
+*** AMI listener
+
+Subscribe to call events from a small Python or Go script via the
+Asterisk Manager Interface — log who called whom, push a desktop
+notification when the doorbell rings, light up a Hue bulb on inbound
+calls. =manager.conf= is already in the repo, just needs a user
+configured.
+
+*** ARI / Stasis app
+
+Write a real call-control app in Python (=ari-py=) or Node. Example:
+an "ask the LLM" extension — dial =*99=, speak, transcript goes to
+Claude / a local model, response gets TTS'd back through the call.
+Modern replacement for AGI; clean HTTP/WebSocket API, easy to
+sandbox.
+
+*** Originate from shell
+
+=asterisk -rx 'channel originate PJSIP/6010 extension 6001@internal'=
+rings two phones together from any script. Building block for the
+home-automation and novelty ideas below — any cron job, webhook, or
+sensor can now make the phones ring.
+
+*** Webhook on call event
+
+A tiny AMI-to-webhook bridge so n8n / Home Assistant / Discord get a
+POST every time a call starts or ends. Suddenly the PBX is a citizen
+of the rest of the home-automation stack.
+
+** Home automation hooks
+
+*** Home Assistant SIP integration
+
+HA can register as a SIP endpoint via its =voip= integration. Dial
+=*123= to trigger an HA scene/script via dialplan + =System()=, or do
+it cleanly through a Stasis app. Two-way: HA can also originate calls
+("doorbell pressed → call every phone").
+
+*** Doorbell rings every phone
+
+A SIP doorbell (Grandstream GDS3710, DoorBird, 2N Verso) registers
+as a regular endpoint. Inbound call from it pages every phone with a
+distinctive ring; two-way audio plus DTMF =*= to release the gate.
+Pairs with the all-phones page above.
+
+*** Motion-triggered intercom
+
+HA detects motion in the nursery and originates a one-way auto-answer
+call from a nursery ATA mic to the parents' softphone. Same
+=Call-Info: answer-after=0= trick as the paging idea — "are they
+awake?" without walking down the corridor.
+
+*** "I'm home" announcement
+
+Phone connects to home WiFi → HA triggers =Page()= to the kitchen ATA
+playing a welcome jingle. Pointless, delightful, two lines of YAML on
+the HA side plus an =Originate=.
+
+** Fun / novelty extensions
+
+*** Speaking clock
+
+Dial =*61= for a TTS'd current time ("it's twenty past three").
+=SayUnixTime()= is built into the dialplan — no external dependency,
+ten-line extension, immediate dopamine.
+
+*** Weather hotline
+
+=*62= fetches the local forecast (SMHI / met.no), pipes it through
+Piper TTS, and =Playback()=s the result. Refresh the WAV on a 30-min
+cron so the call itself is instant rather than waiting on an HTTP
+fetch.
+
+*** Internet radio
+
+=*63= bridges the call into a streaming radio station via
+=MP3Player()= or a local Icecast pull. The kitchen ATA becomes a
+radio — pick up the handset, press =*63=, leave it on the counter.
+
+*** Bedtime story for the kids
+
+=*64<n>= plays story =n= from =/var/lib/asterisk/sounds/stories/= and
+auto-hangs-up at end of file. Genuinely useful while making dinner;
+the kid picks up a phone and listens to a story instead of bothering
+you.
+
+*** Baby monitor on demand
+
+Dial =*65= from the parents' phone and the nursery ATA auto-answers
+listen-only (mic open, speaker muted). Same Call-Info trick as
+paging. No standing connection — only opens when you actually want
+to listen.
+
+*** Retro answering-machine MoH
+
+Replace the default MoH with full 1995 cassette-tape hold music. Drop
+files into =/var/lib/asterisk/moh/= and =moh reload=. Pure vibes,
+zero effort.
+
+*** Speed-dial-to-Spotify
+
+=*7<playlist>= triggers Home Assistant to start a playlist on a
+chosen speaker. The PBX is just the trigger — no audio crosses it,
+the phone becomes a music remote.
+
+*** Wakeup call
+
+Dial =*66=, enter a time, get called at that time with an alarm tone.
+Stores the schedule in =AstDB=; a cron / =at= job =Originate=s the
+call. Classic hotel-PBX feature, useful for kids who want a phone to
+wake them up.
+
+** Hardware worth considering
+
+*** SIP doorbell with camera
+
+Grandstream GDS3710, DoorBird D11x, 2N Verso. All register as
+standard SIP endpoints, so the PBX side is just another phone.
+Combine with the doorbell-paging idea — and with HA, you get the
+video stream on a tablet at the same time.
+
+*** DECT base for cordless handsets
+
+Gigaset N510 IP PRO is the classic — up to six cordless handsets per
+base, all reachable as one SIP account or one per handset. Better
+range and battery than a WiFi softphone, and noticeably less laggy
+than the mobile-via-Tailscale path.
+
+*** Paging horn / ceiling speaker
+
+Algo 8186, CyberData V3, or any SIP-enabled PA. Combine with
+=Page()= for whole-house announcements that don't depend on a phone
+being off-hook. Pairs especially well with workshop / garage spaces
+where you'd never carry a handset.
+
+*** USB FXO gateway
+
+If you want to keep an actual POTS landline alive on the PBX (rare
+in 2026, but possible). Cisco SPA3102 is the cheap classic; gives
+you one FXO port to terminate the copper.
+
+*** Conference speakerphone
+
+Polycom IP 5000 or Yealink CP920 in the dining room makes ConfBridge
+actually pleasant — full-duplex pickup, decent room mic, doesn't
+need an ATA.
+
+*** Wired SIP desk phone
+
+Yealink T31G / T33G / Fanvil X3U are cheap, reliable, and *don't*
+need an ATA. Worth considering before adding a third analogue line
+to the HT812 — one ethernet cable replaces analogue wiring plus a
+power supply.
+
+** Reliability & ops
+
+*** Astdb + spool backups
+
+Nightly =tar= of the =asterisk_lib= and =asterisk_spool= named
+volumes to Restic / rclone. The astdb-corruption episode from the
+HT812 registration loop is a nice motivator — having voicemails and
+=astdb.sqlite3= snapshotted off-box turns a corruption event into a
+"restore yesterday's file" five-minute fix.
+
+*** Prometheus exporter
+
+=res_prometheus.so= (Asterisk module) or =asterisk_exporter=
+(sidecar) feeds a Grafana dashboard — registrations, active channels,
+call counts, RTP loss/jitter. Catches things like "ATA hasn't
+re-registered in 30 minutes" before the user notices.
+
+*** CDR analytics
+
+=cdr_custom.conf= is already enabled and writing
+=cdr-custom/Master.csv=. Pipe that into Grafana / DuckDB / a tiny
+Streamlit dashboard for "who called whom this month". Mostly for
+curiosity, occasionally useful for "wait, who answered that?"
+
+*** Log rotation
+
+=logger.conf= rotation plus a =logrotate= sidecar so the
+=asterisk_log= volume doesn't grow unbounded. Currently a slow leak;
+caught in time, it's a non-issue.
+
+*** Healthcheck → ntfy
+
+Extend the compose healthcheck to push a notification (ntfy /
+Pushover / Discord webhook) if Asterisk goes unhealthy. Quieter than
+finding out because a phone won't dial.
+
+*** Config-test in CI
+
+=just config-test= already exists locally. Wire it into a GitHub
+Action so a broken =pjsip.conf= is caught on push, before it ever
+reaches the live container.
+
+** Security
+
+*** fail2ban for SIP
+
+Only relevant once 5060/5061 is exposed to the public internet —
+currently Tailscale-only, so not urgent. =security.conf= already
+emits the events fail2ban needs; the filter / jail config is the
+missing piece.
+
+*** Strong per-device passwords
+
+See provisioning above. The =";; change me"= comments in =pjsip.conf=
+are perfectly fine while everything is Tailscale-only, and a real
+problem the moment they're not.
+
+*** Internal CA for SIP-TLS
+
+Replace the self-signed cert with one from a small internal CA
+(=smallstep step-ca=) or Tailscale-issued certs via =tailscale cert=.
+Mobile clients can then validate properly without the "trust unknown
+certificate" toggle — both more secure and less annoying to
+re-onboard a device.
+
+*** ACLs
+
+=acl.conf= restricting which source IPs can reach each transport —
+e.g. the ATAs only from =192.168.1.0/24=, mobile endpoints only via
+the Tailscale CGNAT range. Defence in depth on top of strong
+passwords.
