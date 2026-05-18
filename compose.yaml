@@ -41,21 +41,19 @@ services:
       - autoheal=true
 
     healthcheck:
-      # Exercise the SQLite write path the way registrations do: write a
-      # rotating key into astdb and read it back. Catches the failure
-      # mode where the CLI socket happily responds but `ast_db_put`
-      # can't write (disk full, astdb corrupt, …) — `core waitfullybooted`
-      # alone missed that twice. `$$` escapes compose's own variable
-      # interpolation so the shell sees `$(…)` and `$s` at runtime.
+      # Exercise the SQLite write path (the same one registrations use)
+      # via a single CLI call: `database put` prints "Updated database
+      # successfully" on success, anything else (disk full, astdb corrupt,
+      # …) fails the grep. One `asterisk -rx` per check = one pair of
+      # noisy "Remote UNIX connection" log lines (verbose level 3),
+      # instead of two; 60 s interval halves that again. `>-` is a YAML
+      # folded scalar — joined into one shell command at runtime.
       test:
         - "CMD-SHELL"
-        # `>-` is a YAML folded scalar: the continuation lines below are
-        # joined with single spaces into one shell command at runtime.
         - >-
-            s=$$(date +%s) &&
-            asterisk -rx "database put healthcheck stamp $$s" >/dev/null &&
-            asterisk -rx "database get healthcheck stamp" | grep -q "$$s"
-      interval: 30s
+            asterisk -rx "database put healthcheck stamp ok"
+            | grep -q "Updated database successfully"
+      interval: 60s
       timeout: 5s
       retries: 3
       start_period: 60s
